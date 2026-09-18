@@ -79,6 +79,7 @@ def main(page: ft.Page):
             if termo:
                 tarefas_visiveis = [
                     t for t in tarefas_visiveis
+                    if termo in t["title"].lower()
                 ]
 
             completos = sum(1 for item in tarefas_visiveis if item["done"])
