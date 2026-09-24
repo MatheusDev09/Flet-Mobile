@@ -2,25 +2,29 @@ import flet as ft
 import flet_geolocator as fg
 import httpx
 
+
 def main(page: ft.Page):
     # Título que aparece na barra da janela/aba
     page.title = "Meu Endereço"
-    
+
     # Cor de fundo da página inteira: azul petróleo escuro
     page.bgcolor = "#101B2D"
-    
-    # Centraliza os controles no eixo horizontal usando strings diretas (padrão v1.0)
-    page.horizontal_alignment = "center"
-    
-    # Padding de 60px no topo e na base
+
+    # Centraliza os controles no eixo horizontal da página
+    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+
+    # Padding de 60px no topo (fora da área do notch/status bar em celular real) e na base
     page.padding = ft.Padding(top=60, bottom=60, left=0, right=0)
 
+    # Flet 1.0: Geolocator (assim como FilePicker, Audio, etc.) é um
+    # "serviço" que se registra sozinho ao ser criado — não é mais preciso
+    # adicioná-lo a page.services/page.overlay. Basta manter a referência
+    # "geo" viva (ela é capturada pela função obter_local abaixo).
     geo = fg.Geolocator()
-    page.services.append(geo) # Serviços persistentes na v1.0 ficam em page.services
 
-    # IMPORTANTE: ElevatedButton mudou para Button na versão 1.0!
+    # Flet 1.0: ft.ElevatedButton virou apenas ft.Button.
     botao = ft.Button("Obter meu endereço", bgcolor="#4C8BF5", color="#0B1622")
-    
+
     # Cartão de resultado: começa invisível e só aparece depois que o endereço chega
     cartao_endereco = ft.Container(visible=False)
 
@@ -42,19 +46,23 @@ def main(page: ft.Page):
         await geo.request_permission()
         posicao = await geo.get_current_position()
 
-        # 2) Geocodificação reversa usando o serviço gratuito Nominatim
+        # 2) Geocodificação reversa: converte lat/lon em endereço, usando o
+        #    serviço gratuito Nominatim (OpenStreetMap) — não exige chave de API
         async with httpx.AsyncClient() as client:
             resposta = await client.get(
-                "https://openstreetmap.org",
+                "https://nominatim.openstreetmap.org/reverse",
                 params={"format": "jsonv2", "lat": posicao.latitude, "lon": posicao.longitude},
-                headers={"User-Agent": "meu-app-flet/1.0"},
+                headers={"User-Agent": "meu-app-flet/1.0"},  # o Nominatim exige um User-Agent identificável
             )
             dados = resposta.json()
 
+        # O Nominatim já devolve o endereço quebrado em campos, dentro de "address"
         endereco = dados.get("address", {})
+
         rua = endereco.get("road")
         numero = endereco.get("house_number")
         rua_numero = f"{rua}, {numero}" if rua and numero else (rua or "-")
+
         bairro = endereco.get("suburb") or endereco.get("neighbourhood")
         cidade = endereco.get("city") or endereco.get("town") or endereco.get("village")
         estado = endereco.get("state")
@@ -65,7 +73,7 @@ def main(page: ft.Page):
         cartao_endereco.content = ft.Column(
             spacing=6,
             controls=[
-                ft.Text("Endereço encontrado", size=16, weight="bold", color="#4C8BF5"),
+                ft.Text("Endereço encontrado", size=16, weight=ft.FontWeight.BOLD, color="#4C8BF5"),
                 linha("Rua", rua_numero),
                 linha("Bairro", bairro),
                 linha("Cidade", cidade),
@@ -75,15 +83,17 @@ def main(page: ft.Page):
             ],
         )
         cartao_endereco.visible = True
+
         botao.disabled = False
         page.update()
 
     botao.on_click = obter_local
 
-    # Adiciona os elementos na tela usando alinhamento por string simplificada
+    # ft.Row centraliza o botão sozinho na largura da página
     page.add(
-        ft.Row(alignment="center", controls=[botao]),
+        ft.Row(alignment=ft.MainAxisAlignment.CENTER, controls=[botao]),
         cartao_endereco,
     )
+
 
 ft.run(main)
